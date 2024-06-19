@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-macos-x86:
+    runs-on: macos-13
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get And Build WxWidgets
+      run: |
+        wget https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.5/wxWidgets-3.2.5.tar.bz2
+        tar -xf wxWidgets-3.2.5.tar.bz2
+        cd wxWidgets-3.2.5
+        mkdir StaticBuildMac
+        cd StaticBuildMac
+        ../configure --disable-shared --enable-unicode --disable-sys-libs
+        make
+        cd ..
+        zip -r WxWidgets-3.2.5-static-mac.zip StaticBuildMac
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: WxWidgets-${{github.ref_name}}-macos-x86-static
+        path: ${{github.workspace}}/wxWidgets-3.2.5/WxWidgets-3.2.5-static-mac.zip
+
+  release:
+    if: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') }}
+    needs: [ build-macos-x86 ]
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: WxWidgets-${{github.ref_name}}-macos-x86-static
+
+    - name: Populate Release
+      uses: softprops/action-gh-release@v2
+      with:
+        draft: false
+        prerelease: false
+        body: Release files of static builds created from GitHub action runners.
+        files: |
+          WxWidgets-3.2.5-static-mac.zip
+
